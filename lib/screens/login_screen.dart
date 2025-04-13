@@ -118,9 +118,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 32),
-                  // Title
+                  // TitleR
                   const Text(
-                    'Admin Login',
+                    'Login',
                     style: TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
