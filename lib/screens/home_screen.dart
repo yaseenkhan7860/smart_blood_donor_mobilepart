@@ -4,6 +4,8 @@ import '../services/auth_service.dart';
 import 'login_screen.dart';
 import 'admin_dashboard.dart';
 import 'notifications_screen.dart';
+import '../services/notification_service.dart';
+import '../widgets/blood_request_card.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -12,8 +14,10 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
   final AuthService _authService = AuthService();
+  final NotificationService _notificationService = NotificationService();
   User? _user;
   bool _isLoading = true;
   bool _isAdmin = false;
@@ -21,6 +25,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
+  List<BloodRequest> _bloodRequests = [];
 
   @override
   void initState() {
@@ -28,6 +33,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     _loadUser();
     _checkAdminStatus();
     _initAnimations();
+    _loadBloodRequests();
   }
 
   void _initAnimations() {
@@ -105,6 +111,27 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     }
   }
 
+  Future<void> _loadBloodRequests() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final bloodRequests = await _notificationService.getBloodRequests();
+      setState(() {
+        _bloodRequests = bloodRequests;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading blood requests: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -127,101 +154,67 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Blood Donor'),
-        backgroundColor: Colors.red[900],
-        foregroundColor: Colors.white,
+        title: const Text('Blood Donation Requests'),
+        backgroundColor: Colors.red,
         actions: [
-          if (_isAdmin)
-            IconButton(
-              icon: const Icon(Icons.admin_panel_settings),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const AdminDashboard(),
-                  ),
-                );
-              },
-            ),
           IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _logout,
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadBloodRequests,
           ),
         ],
       ),
-      body: IndexedStack(
-        index: _currentIndex,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: Colors.red))
+          : _bloodRequests.isEmpty
+              ? _buildEmptyState()
+              : _buildBloodRequestsList(),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.pushNamed(context, '/create_request');
+        },
+        backgroundColor: Colors.red,
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          SingleChildScrollView(
-            child: Column(
-              children: [
-                _buildProfileHeader(),
-                const SizedBox(height: 24),
-                _buildInfoCard(
-                  context,
-                  'Name',
-                  _user!.name,
-                  Icons.person,
-                ),
-                _buildInfoCard(
-                  context,
-                  'Email',
-                  _user!.email,
-                  Icons.email,
-                ),
-                if (_user!.bloodGroup != null)
-                  _buildInfoCard(
-                    context,
-                    'Blood Group',
-                    _user!.bloodGroup!,
-                    Icons.bloodtype,
-                  ),
-                _buildDonationStats(),
-                const SizedBox(height: 24),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: ElevatedButton.icon(
-                    onPressed: _logout,
-                    icon: const Icon(Icons.logout),
-                    label: const Text('Logout'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red[900],
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 32,
-                        vertical: 16,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+          Icon(Icons.water_drop_outlined, size: 80, color: Colors.red.shade300),
+          const SizedBox(height: 16),
+          Text(
+            'No blood requests available',
+            style: TextStyle(
+              fontSize: 18,
+              color: Colors.grey.shade700,
             ),
           ),
-          const NotificationsScreen(),
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: _loadBloodRequests,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Refresh'),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+          ),
         ],
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
+    );
+  }
+
+  Widget _buildBloodRequestsList() {
+    return RefreshIndicator(
+      onRefresh: _loadBloodRequests,
+      color: Colors.red,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _bloodRequests.length,
+        itemBuilder: (context, index) {
+          final request = _bloodRequests[index];
+          return BloodRequestCard(request: request);
         },
-        selectedItemColor: Colors.red[900],
-        unselectedItemColor: Colors.grey,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.notifications),
-            label: 'Notifications',
-          ),
-        ],
       ),
     );
   }
@@ -306,7 +299,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
   }
 
-  Widget _buildInfoCard(BuildContext context, String title, String value, IconData icon) {
+  Widget _buildInfoCard(
+      BuildContext context, String title, String value, IconData icon) {
     return FadeTransition(
       opacity: _fadeAnimation,
       child: ScaleTransition(
@@ -449,4 +443,4 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       ],
     );
   }
-} 
+}
