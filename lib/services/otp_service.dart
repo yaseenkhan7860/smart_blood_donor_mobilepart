@@ -45,7 +45,7 @@ class OTPService {
     String mailSubject,
   ) async {
     String username = 'smartblooddonor.app@gmail.com';
-    String password = 'hlbapibcpbmcravh'; // App Password
+    String password = 'yrqa uzck wlik djpj'; // App Password
     
     final smtpServer = gmail(username, password);
     
